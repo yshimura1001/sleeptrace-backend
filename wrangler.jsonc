@@ -2,7 +2,7 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sleeptrace-backend",
   "main": "src/index.ts",
-  "compatibility_date": "2026-01-12"
+  "compatibility_date": "2026-01-12",
   // "compatibility_flags": [
   //   "nodejs_compat"
   // ],
@@ -21,13 +21,13 @@
   //     "bucket_name": "my-bucket"
   //   }
   // ],
-  // "d1_databases": [
-  //   {
-  //     "binding": "MY_DB",
-  //     "database_name": "my-database",
-  //     "database_id": ""
-  //   }
-  // ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "sleeptrace-db",
+      "database_id": "94bc369b-172e-49e1-964e-d5792a4936eb"
+    }
+  ],
   // "ai": {
   //   "binding": "AI"
   // },
