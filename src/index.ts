@@ -79,5 +79,16 @@ app.post('/api/sleep', async (c) => {
     return c.json({ error: 'Invalid JSON or Server Error' }, 400)
   }
 })
-
+// 睡眠データの取得
+app.get('/api/sleep', async (c) => {
+  try {
+    const { results } = await c.env.DB.prepare(`
+      SELECT * FROM sleep_logs ORDER BY sleep_date DESC LIMIT 30
+    `).all();
+    
+    return c.json(results);
+  } catch (err) {
+    return c.json({ error: String(err) }, 500);
+  }
+});
 export default app
