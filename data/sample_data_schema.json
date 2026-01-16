@@ -1,0 +1,98 @@
+{
+  "table_name": "sleep_logs",
+  "columns":[
+    {
+      "name": "id",
+      "type": "int",
+      "primary_key": true
+    },
+    {
+      "name": "sleep_date",
+      "type": "text",
+      "convert": [
+        {
+          "str_replace": {
+            "from": "/",
+            "to": "-"
+          }
+        }
+      ]
+    },
+    {
+      "name": "day_of_week_jp",
+      "type": "TEXT",
+      "omit": true
+    },
+    {
+      "name": "sleep_score",
+      "type": "int"
+    },
+    {
+      "name": "bed_time",
+      "type": "TEXT"
+    },
+    {
+      "name": "wakeup_time",
+      "type": "TEXT",
+      "convert": [
+        {
+          "str_format": "HH:MM"
+        }
+      ]
+    },
+    {
+      "name": "wakeup_count",
+      "type": "int"
+    },
+    {
+      "name": "deep_sleep_continuity",
+      "type": "int"
+    },
+    {
+      "name": "sleep_duration",
+      "type": "int",
+      "convert": "(HH*60)+MM"
+    },
+    {
+      "name": "deep_sleep_percentage",
+      "type": "int",
+      "convert": [
+        {
+          "str_replace": {
+            "from": "%",
+            "to": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "light_sleep_percentage",
+      "type": "int",
+      "convert": [
+        {
+          "str_replace": {
+            "from": "%",
+            "to": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "rem_sleep_percentage",
+      "type": "int",
+      "convert": [
+        {
+          "str_replace": {
+            "from": "%",
+            "to": ""
+          }
+        }
+      ]
+    },
+    {
+      "name": "sum_percentage",
+      "type": "int",
+      "omit": true
+    }
+  ]
+}

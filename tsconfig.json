@@ -12,6 +12,7 @@
     "jsxImportSource": "hono/jsx",
     "types": [
       "@cloudflare/workers-types",
+      "node"
     ],
   },
 }

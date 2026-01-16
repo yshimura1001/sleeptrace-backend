@@ -34,3 +34,4 @@ lerna-debug.log*
 
 # data
 data/sample_data.csv
+data/insert_sample_data.sql
