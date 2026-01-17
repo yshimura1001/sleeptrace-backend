@@ -1,11 +1,27 @@
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { z } from 'zod'
+import { zValidator } from '@hono/zod-validator'
+
+// 睡眠ログのバリデーションスキーマ
+const sleepLogSchema = z.object({
+  sleep_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "日付は YYYY-MM-DD 形式で入力してください"),
+  sleep_score: z.number().min(0).max(100, "スコアは 0 から 100 の間で入力してください"),
+  bed_time: z.string().regex(/^\d{2}:\d{2}$/, "就寝時間は HH:MM 形式で入力してください"),
+  wakeup_time: z.string().regex(/^\d{2}:\d{2}$/, "起床時間は HH:MM 形式で入力してください"),
+  sleep_duration: z.number().int().positive("睡眠時間は正の整数（分）で入力してください"),
+  wakeup_count: z.number().int().min(0, "中途覚醒回数は 0 以上の整数で入力してください"),
+  deep_sleep_continuity: z.number().min(0).max(100, "深い睡眠の持続性は 0 から 100 の間で入力してください"),
+  deep_sleep_percentage: z.number().min(0).max(100, "深い睡眠の割合は 0 から 100 の間で入力してください"),
+  light_sleep_percentage: z.number().min(0).max(100, "浅い睡眠の割合は 0 から 100 の間で入力してください"),
+  rem_sleep_percentage: z.number().min(0).max(100, "レム睡眠の割合は 0 から 100 の間で入力してください"),
+})
 
 type Bindings = {
   DB: D1Database
 }
 
-const app = new Hono<{Bindings: Bindings}>()
+const app = new Hono<{ Bindings: Bindings }>()
 
 // CORSを許可する(フロントエンドからのアクセスを許可する)
 app.use('/api/*', cors())
@@ -16,30 +32,27 @@ app.get('api/check', async (c) => {
     const db = c.env.DB
     const res = await db.prepare('SELECT 1 as result').all<{ result: number }>()
     const result = res.results?.[0]?.result || 0
-    return c.json({ 
+    return c.json({
       status: 'success',
-      message: 'Database connected successfully!', 
+      message: 'Database connected successfully!',
       result
-     })
-  } catch(e) {
-    return c.json({ 
+    })
+  } catch (e) {
+    return c.json({
       status: 'error',
       error: e instanceof Error ? e.message : String(e)
-     }, 500)
+    }, 500)
   }
 })
 
 // 睡眠データの保存 API
-app.post('/api/sleep', async (c) => {
+// zValidator でリクエストボディのバリデーションを行います
+app.post('/api/sleep_logs', zValidator('json', sleepLogSchema), async (c) => {
   try {
-    // フロントエンドから送られてくる JSON を取得
-    const body = await c.req.json()
-
-    // デバッグ用
-    //console.log('Received body:', body)
+    // バリデーション済みのデータを取得
+    const body = c.req.valid('json')
 
     // D1 への保存クエリを実行
-    // SQLインジェクションを防ぐため、必ず .bind() を使って値を渡します
     const result = await c.env.DB.prepare(`
       INSERT INTO sleep_logs (
         sleep_date, 
@@ -54,38 +67,38 @@ app.post('/api/sleep', async (c) => {
         rem_sleep_percentage
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    .bind(
-      body.sleep_date,
-      body.sleep_score,
-      body.bed_time,
-      body.wakeup_time,
-      body.sleep_duration,
-      body.wakeup_count,
-      body.deep_sleep_continuity,
-      body.deep_sleep_percentage,
-      body.light_sleep_percentage,
-      body.rem_sleep_percentage
-    )
-    .run()
+      .bind(
+        body.sleep_date,
+        body.sleep_score,
+        body.bed_time,
+        body.wakeup_time,
+        body.sleep_duration,
+        body.wakeup_count,
+        body.deep_sleep_continuity,
+        body.deep_sleep_percentage,
+        body.light_sleep_percentage,
+        body.rem_sleep_percentage
+      )
+      .run()
 
     if (result.success) {
-      return c.json({ message: 'Success!' }, 201)
+      return c.json({ message: 'Success!', id: result.meta.last_row_id }, 201)
     } else {
       return c.json({ error: 'Database insert failed' }, 500)
     }
 
   } catch (err) {
     console.error(err)
-    return c.json({ error: 'Invalid JSON or Server Error' }, 400)
+    return c.json({ error: 'Server Error' }, 500)
   }
 })
 // 睡眠データの取得
-app.get('/api/sleep', async (c) => {
+app.get('/api/sleep_logs', async (c) => {
   try {
     const { results } = await c.env.DB.prepare(`
       SELECT * FROM sleep_logs ORDER BY sleep_date DESC LIMIT 30
     `).all();
-    
+
     return c.json(results);
   } catch (err) {
     return c.json({ error: String(err) }, 500);
