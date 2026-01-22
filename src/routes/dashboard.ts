@@ -60,10 +60,55 @@ app.get("/statistics", async (c) => {
       `,
     ).first();
 
+    // トレンド分析用: 全データの必要カラムを取得 (日付昇順)
+    const rawData = await c.env.DB.prepare(
+      `
+      SELECT 
+        wakeup_count,
+        deep_sleep_continuity,
+        deep_sleep_percentage,
+        light_sleep_percentage
+      FROM sleep_logs
+      ORDER BY sleep_date ASC
+      `
+    ).all<{
+      wakeup_count: number;
+      deep_sleep_continuity: number;
+      deep_sleep_percentage: number;
+      light_sleep_percentage: number;
+    }>();
+
+    const calculateSlope = (data: number[]) => {
+      const n = data.length;
+      if (n < 2) return 0;
+      const x = Array.from({ length: n }, (_, i) => i);
+      const y = data;
+      const sumX = x.reduce((a, b) => a + b, 0);
+      const sumY = y.reduce((a, b) => a + b, 0);
+      const sumXY = x.reduce((sum, xi, i) => sum + xi * y[i], 0);
+      const sumXX = x.reduce((sum, xi) => sum + xi * xi, 0);
+      const slope = (n * sumXY - sumX * sumY) / (n * sumXX - sumX * sumX);
+      return slope;
+    };
+
+    const trends = {
+      wakeup_count: calculateSlope(rawData.results.map((d) => d.wakeup_count)),
+      deep_sleep_continuity: calculateSlope(
+        rawData.results.map((d) => d.deep_sleep_continuity),
+      ),
+      deep_sleep_percentage: calculateSlope(
+        rawData.results.map((d) => d.deep_sleep_percentage),
+      ),
+      light_sleep_percentage: calculateSlope(
+        rawData.results.map((d) => d.light_sleep_percentage),
+      ),
+    };
+
     return c.json({
       data: {
         ...result,
         ...timeStats,
+        trends,
       },
     });
   } catch (err) {
