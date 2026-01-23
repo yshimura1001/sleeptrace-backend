@@ -5,6 +5,7 @@ type Bindings = {
   DB: D1Database;
 };
 
+import csvRouter from "./routes/csv";
 import dashboardRouter from "./routes/dashboard";
 import sleepLogsRouter from "./routes/sleep_logs";
 
@@ -18,6 +19,9 @@ app.route("/api/dashboard", dashboardRouter);
 
 // 睡眠ログ関連のルートをマウント
 app.route("/api/sleep_logs", sleepLogsRouter);
+
+// CSV関連のルートをマウント
+app.route("/api/csv", csvRouter);
 
 // 疎通確認用エンドポイント
 app.get("api/check", async (c) => {
