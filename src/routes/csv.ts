@@ -43,10 +43,10 @@ app.get("/export", async (c) => {
     ).all();
 
     if (!results || results.length === 0) {
-       return c.text("日付,睡眠スコア,就寝時間,起床時間,中途覚醒回数,深い睡眠の持続性,深い睡眠割合,浅い睡眠割合,レム睡眠割合\n");
+       return c.text("日付,睡眠スコア,就寝時間,起床時間,中途覚醒回数,深い睡眠の持続性,睡眠時間,深い睡眠割合,浅い睡眠割合,レム睡眠割合\n");
     }
 
-    // Japanese headers, excluding sleep_duration
+    // Japanese headers, matching data.csv structure
     const header = [
       "日付",
       "睡眠スコア",
@@ -54,6 +54,7 @@ app.get("/export", async (c) => {
       "起床時間",
       "中途覚醒回数",
       "深い睡眠の持続性",
+      "睡眠時間",
       "深い睡眠割合",
       "浅い睡眠割合",
       "レム睡眠割合"
@@ -67,6 +68,7 @@ app.get("/export", async (c) => {
         row.wakeup_time,
         row.wakeup_count,
         row.deep_sleep_continuity,
+        row.sleep_duration,
         row.deep_sleep_percentage,
         row.light_sleep_percentage,
         row.rem_sleep_percentage
@@ -108,70 +110,8 @@ app.post("/import", async (c) => {
 
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
     
-    // Header detection
-    const headerLineRaw = lines[0];
-    const headerCols = headerLineRaw.split(",").map(cleanVal); // Simple comma split
-    
-    // Detect format based on header columns
-    // We support two formats:
-    // 1. Standard (Exported): 日付, 睡眠スコア, 就寝時間, 起床時間, 中途覚醒回数, ...
-    // 2. Data.csv (User defined): 日付, 曜日, 点数, 入眠時間, 起床時間, 目が覚めた回数, ...
-    
-    // Map column names to index
-    const colMap: Record<string, number> = {};
-    headerCols.forEach((col, idx) => {
-        colMap[col] = idx;
-    });
-
-    // Helper to get value by possible keys
-    const getValue = (cols: string[], keys: string[]): string | undefined => {
-        for (const key of keys) {
-            // exact match or fuzzy? Let's try exact first (cleaned)
-            for (const colHeader in colMap) {
-                 if (colHeader === key || colHeader.includes(key)) { // bit loose check for "深い睡眠の持続性(点数)" vs "深い睡眠の持続性"
-                     return cols[colMap[colHeader]];
-                 }
-            }
-        }
-        return undefined;
-    };
-    
-    // We need to be careful with "includes" matching too broadly.
-    // Let's define explicit mapping preference order.
-    const findIndex = (keys: string[]): number => {
-        for (const key of keys) {
-            const idx = headerCols.findIndex(h => h === key || h.includes(key));
-            if (idx !== -1) return idx;
-        }
-        return -1;
-    }
-
-    const idxDate = findIndex(["日付", "sleep_date"]);
-    const idxScore = findIndex(["点数", "睡眠スコア", "sleep_score"]);
-    const idxBed = findIndex(["入眠時間", "就寝時間", "bed_time"]);
-    const idxWake = findIndex(["起床時間", "wakeup_time"]);
-    const idxWakeCount = findIndex(["目が覚めた回数", "中途覚醒回数", "wakeup_count"]);
-    const idxCont = findIndex(["深い睡眠の持続性", "deep_sleep_continuity"]);
-    const idxDeep = findIndex(["深い睡眠の割合", "深い睡眠割合", "deep_sleep_percentage"]);
-    const idxLight = findIndex(["浅い睡眠の割合", "浅い睡眠割合", "light_sleep_percentage"]);
-    const idxRem = findIndex(["レム睡眠の割合", "レム睡眠割合", "rem_sleep_percentage"]);
-
-    if (idxDate === -1) {
-        // If we can't even find date, skip header check and fail? or assume specific order?
-        // Let's assume header is present.
-    }
-
-    let dataLines = lines;
-    // skip header
-    if (idxDate !== -1) {
-        dataLines = lines.slice(1);
-    } else {
-        // If no header detected, maybe it's raw data? But dangerous.
-        // Assume first line is header if it fails to parse as date
-         if (isNaN(Date.parse(lines[0].split(",")[0].replace(/\//g, '-')))) {
-             dataLines = lines.slice(1);
-         }
-    }
+    // Skip header line logic: Just assume first line is header and skip it
+    const dataLines = lines.slice(1);
 
     let successCount = 0;
     let skipCount = 0;
@@ -180,24 +120,53 @@ app.post("/import", async (c) => {
 
     const db = c.env.DB;
 
+    // Fixed Index Mapping
+    // 0: sleep_date
+    // 1: sleep_score
+    // 2: bed_time
+    // 3: wakeup_time
+    // 4: wakeup_count
+    // 5: deep_sleep_continuity
+    // 6: sleep_duration (Can be number or HH:MM)
+    // 7: deep_sleep_percentage
+    // 8: light_sleep_percentage
+    // 9: rem_sleep_percentage
+
     for (const [index, line] of dataLines.entries()) {
-      // Split by comma. NOTE: Does not handle comma inside quotes strictly, but assuming data.csv structure.
-      // data.csv uses quotes for headers but values seem simple.
       const cols = line.split(",").map(cleanVal);
       
-      const getCol = (idx: number) => idx !== -1 ? cols[idx] : "";
+      const getCol = (idx: number) => (cols.length > idx) ? cols[idx] : "";
 
-      let sleepDate = getCol(idxDate);
+      let sleepDate = getCol(0);
       if (!sleepDate) continue; // skip empty
 
       sleepDate = sleepDate.replace(/\//g, "-");
 
-      const bedTime = getCol(idxBed);
-      const wakeupTime = getCol(idxWake);
+      const score = Number(getCol(1));
+      const bedTime = getCol(2).padStart(5, '0');
+      const wakeupTime = getCol(3).padStart(5, '0');
+      const wakeupCount = Number(getCol(4));
+      const deepSleepCont = Number(getCol(5));
       
+      // Parse Duration (Index 6)
       let duration = 0;
-      if (bedTime && wakeupTime) {
-          // ensure HH:MM
+      const durationStr = getCol(6);
+      
+      if (durationStr) {
+          if (!isNaN(Number(durationStr))) {
+               // It's a number (minutes)
+               duration = Number(durationStr);
+          } else if (durationStr.includes(":")) {
+               // It's a time string (HH:MM or H:MM) - convert to minutes
+               const [h, m] = durationStr.split(":").map(Number);
+               if (!isNaN(h) && !isNaN(m)) {
+                   duration = h * 60 + m;
+               }
+          }
+      }
+
+      // Fallback calculation if duration is still 0 (and we have times)
+      if (duration === 0 && bedTime && wakeupTime) {
           const normBed = bedTime.indexOf(':') === 1 ? '0' + bedTime : bedTime;
           const normWake = wakeupTime.indexOf(':') === 1 ? '0' + wakeupTime : wakeupTime;
            if (/^\d{2}:\d{2}$/.test(normBed) && /^\d{2}:\d{2}$/.test(normWake)) {
@@ -205,17 +174,21 @@ app.post("/import", async (c) => {
            }
       }
 
+      const deepSleepPct = parsePercentage(getCol(7));
+      const lightSleepPct = parsePercentage(getCol(8));
+      const remSleepPct = parsePercentage(getCol(9));
+
       const rawData = {
         sleep_date: sleepDate,
-        sleep_score: Number(getCol(idxScore)),
-        bed_time: bedTime.padStart(5, '0'),
-        wakeup_time: wakeupTime.padStart(5, '0'),
+        sleep_score: score,
+        bed_time: bedTime,
+        wakeup_time: wakeupTime,
         sleep_duration: duration,
-        wakeup_count: Number(getCol(idxWakeCount)),
-        deep_sleep_continuity: Number(getCol(idxCont)),
-        deep_sleep_percentage: parsePercentage(getCol(idxDeep)),
-        light_sleep_percentage: parsePercentage(getCol(idxLight)),
-        rem_sleep_percentage: parsePercentage(getCol(idxRem)),
+        wakeup_count: wakeupCount,
+        deep_sleep_continuity: deepSleepCont,
+        deep_sleep_percentage: deepSleepPct,
+        light_sleep_percentage: lightSleepPct,
+        rem_sleep_percentage: remSleepPct,
       };
 
       // Validate
