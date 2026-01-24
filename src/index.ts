@@ -1,29 +1,56 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
+import { jwt } from "hono/jwt";
 
 type Bindings = {
   DB: D1Database;
+  JWT_SECRET: string;
 };
 
+import authRouter from "./routes/auth";
 import csvRouter from "./routes/csv";
 import dashboardRouter from "./routes/dashboard";
 import sleepLogsRouter from "./routes/sleep_logs";
+import usersRouter from "./routes/users";
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// CORSを許可する(フロントエンドからのアクセスを許可する)
+// CORSを許可する
 app.use("/api/*", cors());
 
-// ダッシュボード関連のルートをマウント
+// Authentication Routes (Public)
+app.route("/api/auth", authRouter);
+
+// JWT Middleware for protected routes
+app.use("/api/sleep_logs/*", (c, next) => {
+    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const jwtMiddleware = jwt({ secret });
+    return jwtMiddleware(c, next);
+});
+app.use("/api/dashboard/*", (c, next) => {
+    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const jwtMiddleware = jwt({ secret });
+    return jwtMiddleware(c, next);
+});
+app.use("/api/csv/*", (c, next) => {
+    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const jwtMiddleware = jwt({ secret });
+    return jwtMiddleware(c, next);
+});
+app.use("/api/users/*", (c, next) => {
+    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const jwtMiddleware = jwt({ secret });
+    return jwtMiddleware(c, next);
+});
+
+
+// Protected Routes
 app.route("/api/dashboard", dashboardRouter);
-
-// 睡眠ログ関連のルートをマウント
 app.route("/api/sleep_logs", sleepLogsRouter);
-
-// CSV関連のルートをマウント
 app.route("/api/csv", csvRouter);
+app.route("/api/users", usersRouter);
 
-// 疎通確認用エンドポイント
+// 疎通確認用エンドポイント (Public)
 app.get("api/check", async (c) => {
   try {
     const db = c.env.DB;

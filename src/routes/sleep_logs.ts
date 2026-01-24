@@ -6,23 +6,32 @@ type Bindings = {
   DB: D1Database;
 };
 
-const app = new Hono<{ Bindings: Bindings }>();
+// Define variables for Context
+type Variables = {
+  jwtPayload: {
+    sub: number;
+    username: string;
+    exp: number;
+  };
+};
+
+const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // 睡眠ログのバリデーションスキーマ
 import { sleepLogSchema } from "../schemas";
 
 // 睡眠データの保存 API
-// zValidator でリクエストボディのバリデーションを行います
 app.post("/", zValidator("json", sleepLogSchema), async (c) => {
   try {
-    // バリデーション済みのデータを取得
     const body = c.req.valid("json");
+    const payload = c.get("jwtPayload");
+    const userId = payload.sub;
 
-    // 同一日付のデータが存在するか確認
+    // 同一日付のデータが存在するか確認 (ユーザー単位)
     const existing = await c.env.DB.prepare(
-      "SELECT id FROM sleep_logs WHERE sleep_date = ?",
+      "SELECT id FROM sleep_logs WHERE sleep_date = ? AND user_id = ?",
     )
-      .bind(body.sleep_date)
+      .bind(body.sleep_date, userId)
       .first();
 
     if (existing) {
@@ -33,6 +42,7 @@ app.post("/", zValidator("json", sleepLogSchema), async (c) => {
     const result = await c.env.DB.prepare(
       `
       INSERT INTO sleep_logs (
+        user_id,
         sleep_date, 
         sleep_score, 
         bed_time, 
@@ -43,10 +53,11 @@ app.post("/", zValidator("json", sleepLogSchema), async (c) => {
         deep_sleep_percentage, 
         light_sleep_percentage, 
         rem_sleep_percentage
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
     )
       .bind(
+        userId,
         body.sleep_date,
         body.sleep_score,
         body.bed_time,
@@ -70,27 +81,52 @@ app.post("/", zValidator("json", sleepLogSchema), async (c) => {
     return c.json({ error: "Server Error" }, 500);
   }
 });
+// Helper to resolve user ID for viewing
+async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
+  const targetIdStr = c.req.query("targetUserId");
+  if (targetIdStr) {
+    const targetId = Number(targetIdStr);
+    // If viewing self, no extra check needed
+    if (targetId === requesterId) return requesterId;
+
+    // Check if target is public
+    const user: any = await c.env.DB.prepare("SELECT is_public FROM users WHERE id = ?").bind(targetId).first();
+    if (!user || user.is_public !== 1) {
+       throw new Error("Access denied: User data is not public");
+    }
+    return targetId;
+  }
+  return requesterId;
+}
+
 // 睡眠データの取得 (月単位 or ページネーション)
 app.get("/", async (c) => {
   try {
+    const payload = c.get("jwtPayload");
+    const requesterId = payload.sub;
+    let userId = requesterId;
+
+    try {
+        userId = await resolveViewUserId(c, requesterId);
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "Forbidden" }, 403);
+    }
+
     const month = c.req.query("month"); // YYYY-MM
     let results;
 
     if (month) {
-      // 月指定がある場合: その月のデータを全件取得
-      // 日付の降順
       const { results: data } = await c.env.DB.prepare(
         `
         SELECT * FROM sleep_logs 
-        WHERE strftime('%Y-%m', sleep_date) = ? 
+        WHERE strftime('%Y-%m', sleep_date) = ? AND user_id = ?
         ORDER BY sleep_date ASC
       `,
       )
-        .bind(month)
+        .bind(month, userId)
         .all();
       results = data;
 
-      // month指定時はページネーション情報は簡易的なものまたはnullで返す
       return c.json({
         data: results,
         meta: {
@@ -99,26 +135,24 @@ app.get("/", async (c) => {
         },
       });
     } else {
-      // 従来のページネーションロジック (後方互換性のため残す、あるいはデフォルト動作)
       const page = Number(c.req.query("page") || 1);
       const limit = Number(c.req.query("limit") || 50);
       const offset = (page - 1) * limit;
 
       const { results: data } = await c.env.DB.prepare(
         `
-        SELECT * FROM sleep_logs ORDER BY sleep_date DESC LIMIT ? OFFSET ?
+        SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY sleep_date DESC LIMIT ? OFFSET ?
       `,
       )
-        .bind(limit, offset)
+        .bind(userId, limit, offset)
         .all();
       results = data;
 
-      // 総件数の取得
       const totalCountResult = await c.env.DB.prepare(
         `
-        SELECT COUNT(*) as count FROM sleep_logs
+        SELECT COUNT(*) as count FROM sleep_logs WHERE user_id = ?
       `,
-      ).first<{ count: number }>();
+      ).bind(userId).first<{ count: number }>();
 
       const total = totalCountResult?.count || 0;
 
@@ -140,13 +174,23 @@ app.get("/", async (c) => {
 // 単一の睡眠ログ取得
 app.get("/:id", async (c) => {
   const id = c.req.param("id");
+  const payload = c.get("jwtPayload");
+  const requesterId = payload.sub;
+  let userId = requesterId;
+
+  try {
+      userId = await resolveViewUserId(c, requesterId);
+  } catch (e) {
+      return c.json({ error: e instanceof Error ? e.message : "Forbidden" }, 403);
+  }
+
   try {
     const log = await c.env.DB.prepare(
       `
-      SELECT * FROM sleep_logs WHERE id = ?
+      SELECT * FROM sleep_logs WHERE id = ? AND user_id = ?
     `,
     )
-      .bind(id)
+      .bind(id, userId)
       .first();
 
     if (!log) {
@@ -161,14 +205,17 @@ app.get("/:id", async (c) => {
 // 睡眠ログの更新
 app.put("/:id", zValidator("json", sleepLogSchema), async (c) => {
   const id = c.req.param("id");
+  const payload = c.get("jwtPayload");
+  const userId = payload.sub;
+
   try {
     const body = c.req.valid("json");
 
-    // 同一日付のデータが他に存在するか確認 (自分自身は除く)
+    // Check ownership and duplicates
     const existing = await c.env.DB.prepare(
-      "SELECT id FROM sleep_logs WHERE sleep_date = ? AND id != ?",
+      "SELECT id FROM sleep_logs WHERE sleep_date = ? AND user_id = ? AND id != ?",
     )
-      .bind(body.sleep_date, id)
+      .bind(body.sleep_date, userId, id)
       .first();
 
     if (existing) {
@@ -188,7 +235,7 @@ app.put("/:id", zValidator("json", sleepLogSchema), async (c) => {
         deep_sleep_percentage = ?,
         light_sleep_percentage = ?,
         rem_sleep_percentage = ?
-      WHERE id = ?
+      WHERE id = ? AND user_id = ?
     `,
     )
       .bind(
@@ -203,6 +250,7 @@ app.put("/:id", zValidator("json", sleepLogSchema), async (c) => {
         body.light_sleep_percentage,
         body.rem_sleep_percentage,
         id,
+        userId
       )
       .run();
 
@@ -224,9 +272,12 @@ app.put("/:id", zValidator("json", sleepLogSchema), async (c) => {
 // 睡眠ログの削除
 app.delete("/:id", async (c) => {
   const id = c.req.param("id");
+  const payload = c.get("jwtPayload");
+  const userId = payload.sub;
+
   try {
-    const result = await c.env.DB.prepare("DELETE FROM sleep_logs WHERE id = ?")
-      .bind(id)
+    const result = await c.env.DB.prepare("DELETE FROM sleep_logs WHERE id = ? AND user_id = ?")
+      .bind(id, userId)
       .run();
 
     if (result.success) {

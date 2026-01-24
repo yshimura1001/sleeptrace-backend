@@ -6,9 +6,34 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
+// Helper to resolve user ID for viewing
+async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
+  const targetIdStr = c.req.query("targetUserId");
+  if (targetIdStr) {
+    const targetId = Number(targetIdStr);
+    if (targetId === requesterId) return requesterId;
+
+    const user: any = await c.env.DB.prepare("SELECT is_public FROM users WHERE id = ?").bind(targetId).first();
+    if (!user || user.is_public !== 1) {
+       throw new Error("Access denied: User data is not public");
+    }
+    return targetId;
+  }
+  return requesterId;
+}
+
 // ダッシュボード用: 全体統計データ取得
 app.get("/statistics", async (c) => {
   try {
+    const payload = c.get("jwtPayload");
+    const requesterId = payload.sub;
+    let userId = requesterId;
+    try {
+        userId = await resolveViewUserId(c, requesterId);
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "Forbidden" }, 403);
+    }
+
     const result = await c.env.DB.prepare(
       `
       SELECT 
@@ -35,8 +60,9 @@ app.get("/statistics", async (c) => {
         AVG(rem_sleep_percentage) as avg_rem_sleep_percentage,
         COUNT(*) as count
       FROM sleep_logs
+      WHERE user_id = ?
     `,
-    ).first();
+    ).bind(userId).first();
 
     if (!result || result.count === 0) {
       return c.json({ data: null });
@@ -57,8 +83,9 @@ app.get("/statistics", async (c) => {
           CAST(substr(wakeup_time, 1, 2) AS INTEGER) * 60 + CAST(substr(wakeup_time, 4, 2) AS INTEGER)
         ) as avg_wakeup_time_min
       FROM sleep_logs
+      WHERE user_id = ?
       `,
-    ).first();
+    ).bind(userId).first();
 
     // トレンド分析用: 全データの必要カラムを取得 (日付昇順)
     const rawData = await c.env.DB.prepare(
@@ -69,9 +96,10 @@ app.get("/statistics", async (c) => {
         deep_sleep_percentage,
         light_sleep_percentage
       FROM sleep_logs
+      WHERE user_id = ?
       ORDER BY sleep_date ASC
       `
-    ).all<{
+    ).bind(userId).all<{
       wakeup_count: number;
       deep_sleep_continuity: number;
       deep_sleep_percentage: number;
@@ -119,6 +147,15 @@ app.get("/statistics", async (c) => {
 // ダッシュボード用: 曜日別データ取得
 app.get("/weekly", async (c) => {
   try {
+    const payload = c.get("jwtPayload");
+    const requesterId = payload.sub;
+    let userId = requesterId;
+    try {
+        userId = await resolveViewUserId(c, requesterId);
+    } catch (e) {
+        return c.json({ error: e instanceof Error ? e.message : "Forbidden" }, 403);
+    }
+
     // 曜日ごと (0=Sun, 1=Mon, ..., 6=Sat) の平均を計算
     const results = await c.env.DB.prepare(
       `
@@ -143,10 +180,11 @@ app.get("/weekly", async (c) => {
         ) as avg_wakeup_time_min,
         COUNT(*) as count
       FROM sleep_logs
+      WHERE user_id = ?
       GROUP BY day_of_week
       ORDER BY day_of_week ASC
     `,
-    ).all();
+    ).bind(userId).all();
 
     return c.json({
       data: results.results,
