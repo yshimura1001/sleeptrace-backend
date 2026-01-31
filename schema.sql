@@ -24,5 +24,5 @@ CREATE TABLE IF NOT EXISTS sleep_logs (
 
 -- Initial users
 INSERT INTO users (username, password_hash) VALUES
-  ('yasuaki', '05b9b5053b8eb5730da9a09a2858e91edd9655979cefa38337132e4caddccdbe'),
+  ('yasuaki', '0f5a5eed0bc5c41cd6b434e7c01a350aabf81b85a2bbd5aa7673e697ce4b44f4'),
   ('guest', '4e44ddd556675917fdaf890126830760f42eb0c7baef4b02a0529a77c34724e8');
