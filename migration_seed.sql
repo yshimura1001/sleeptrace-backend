@@ -36,4 +36,4 @@ CREATE TABLE IF NOT EXISTS sleep_logs (
 -- Ideally we insert them now. "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8" is SHA-256 for "password".
 
 INSERT INTO users (username, password_hash, is_public) VALUES ('yasuaki', '0f5a5eed0bc5c41cd6b434e7c01a350aabf81b85a2bbd5aa7673e697ce4b44f4', 1);
-INSERT INTO users (username, password_hash) VALUES ('guest', '5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8');
+INSERT INTO users (username, password_hash) VALUES ('guest', '4e44ddd556675917fdaf890126830760f42eb0c7baef4b02a0529a77c34724e8');
