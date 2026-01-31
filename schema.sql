@@ -21,3 +21,8 @@ CREATE TABLE IF NOT EXISTS sleep_logs (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
+
+-- Initial users
+INSERT INTO users (username, password_hash) VALUES
+  ('yasuaki', '05b9b5053b8eb5730da9a09a2858e91edd9655979cefa38337132e4caddccdbe'),
+  ('guest', '4e44ddd556675917fdaf890126830760f42eb0c7baef4b02a0529a77c34724e8');
