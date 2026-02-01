@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import { zValidator } from "@hono/zod-validator";
 
 type Bindings = {
@@ -21,7 +20,12 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 import { sleepLogSchema } from "../schemas";
 
 // 睡眠データの保存 API
-app.post("/", zValidator("json", sleepLogSchema), async (c) => {
+app.post("/", zValidator("json", sleepLogSchema, (result, c) => {
+  if (!result.success) {
+    const messages = result.error.issues.map((i: { message: string }) => i.message).join(', ')
+    return c.json({ error: messages }, 400)
+  }
+}), async (c) => {
   try {
     const body = c.req.valid("json");
     const payload = c.get("jwtPayload");
@@ -203,7 +207,12 @@ app.get("/:id", async (c) => {
 });
 
 // 睡眠ログの更新
-app.put("/:id", zValidator("json", sleepLogSchema), async (c) => {
+app.put("/:id", zValidator("json", sleepLogSchema, (result, c) => {
+  if (!result.success) {
+    const messages = result.error.issues.map((i: { message: string }) => i.message).join(', ')
+    return c.json({ error: messages }, 400)
+  }
+}), async (c) => {
   const id = c.req.param("id");
   const payload = c.get("jwtPayload");
   const userId = payload.sub;
