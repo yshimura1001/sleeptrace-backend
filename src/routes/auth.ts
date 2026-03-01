@@ -6,7 +6,7 @@ import { zValidator } from "@hono/zod-validator";
 const app = new Hono<{ Bindings: { DB: D1Database; JWT_SECRET: string } }>();
 
 // Simple SHA-256 hash function (In production, use salt + PBKDF2 or similar)
-async function hashPassword(password: string): Promise<string> {
+export async function hashPassword(password: string): Promise<string> {
   const msgBuffer = new TextEncoder().encode(password);
   const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
   const hashArray = Array.from(new Uint8Array(hashBuffer));

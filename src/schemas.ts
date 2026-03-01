@@ -1,5 +1,16 @@
 import { z } from "zod";
 
+// ユーザー更新のバリデーションスキーマ
+export const userUpdateSchema = z.object({
+  username: z.string().min(3, "ユーザー名は3文字以上で入力してください。").optional(),
+  current_password: z.string().min(1, "現在のパスワードを入力してください。").optional(),
+  new_password: z.string().min(6, "新しいパスワードは6文字以上で入力してください。").optional(),
+  is_public: z.number().min(0).max(1).optional(),
+}).refine(
+  (data) => !(data.new_password && !data.current_password),
+  { message: "パスワードを変更するには現在のパスワードが必要です。" }
+);
+
 // 睡眠ログのバリデーションスキーマ
 export const sleepLogSchema = z
   .object({
