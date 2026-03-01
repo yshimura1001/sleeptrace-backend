@@ -59,8 +59,7 @@ app.get("/statistics", async (c) => {
         MAX(rem_sleep_percentage) as max_rem_sleep_percentage,
         AVG(rem_sleep_percentage) as avg_rem_sleep_percentage,
         COUNT(*) as count
-      FROM sleep_logs
-      WHERE user_id = ?
+      FROM (SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY sleep_date DESC LIMIT 100)
     `,
     ).bind(userId).first();
 
@@ -82,8 +81,7 @@ app.get("/statistics", async (c) => {
         AVG(
           CAST(substr(wakeup_time, 1, 2) AS INTEGER) * 60 + CAST(substr(wakeup_time, 4, 2) AS INTEGER)
         ) as avg_wakeup_time_min
-      FROM sleep_logs
-      WHERE user_id = ?
+      FROM (SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY sleep_date DESC LIMIT 100)
       `,
     ).bind(userId).first();
 
@@ -95,8 +93,7 @@ app.get("/statistics", async (c) => {
         deep_sleep_continuity,
         deep_sleep_percentage,
         light_sleep_percentage
-      FROM sleep_logs
-      WHERE user_id = ?
+      FROM (SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY sleep_date DESC LIMIT 100)
       ORDER BY sleep_date ASC
       `
     ).bind(userId).all<{
@@ -179,8 +176,7 @@ app.get("/weekly", async (c) => {
           CAST(substr(wakeup_time, 1, 2) AS INTEGER) * 60 + CAST(substr(wakeup_time, 4, 2) AS INTEGER)
         ) as avg_wakeup_time_min,
         COUNT(*) as count
-      FROM sleep_logs
-      WHERE user_id = ?
+      FROM (SELECT * FROM sleep_logs WHERE user_id = ? ORDER BY sleep_date DESC LIMIT 100)
       GROUP BY day_of_week
       ORDER BY day_of_week ASC
     `,
