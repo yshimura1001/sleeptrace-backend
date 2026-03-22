@@ -159,7 +159,7 @@ app.delete("/:id", async (c) => {
     if (result.success && result.meta.changes > 0) {
       return c.json({ message: "アカウントを削除しました。" });
     } else {
-      return c.json({ error: "User not found" }, 404);
+      return c.json({ error: "ユーザーが見つかりません。" }, 404);
     }
   } catch (err) {
     return c.json({ error: String(err) }, 500);
