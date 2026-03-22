@@ -4,23 +4,9 @@ type Bindings = {
   DB: D1Database;
 };
 
+import { resolveViewUserId } from "./auth";
+
 const app = new Hono<{ Bindings: Bindings }>();
-
-// 当該ユーザーが公開設定をONにしているか確認するヘルパー関数。
-async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
-  const targetIdStr = c.req.query("targetUserId");
-  if (targetIdStr) {
-    const targetId = Number(targetIdStr);
-    if (targetId === requesterId) return requesterId;
-
-    const user: any = await c.env.DB.prepare("SELECT is_public FROM users WHERE id = ?").bind(targetId).first();
-    if (!user || user.is_public !== 1) {
-       throw new Error("Access denied: User data is not public");
-    }
-    return targetId;
-  }
-  return requesterId;
-}
 
 // ダッシュボード用: 全体統計データ取得
 app.get("/statistics", async (c) => {

@@ -5,12 +5,12 @@ type Bindings = {
   DB: D1Database;
 };
 
-// Define variables for Context
+// コンテキストで利用する変数を定義
 type Variables = {
   jwtPayload: {
-    sub: number;
+    sub: number;  // Subject:トークンの主体=ユーザーID
     username: string;
-    exp: number;
+    exp: number;  // Expiration time: トークンの有効期限 (UNIXタイムスタンプ)
   };
 };
 
@@ -18,6 +18,8 @@ const app = new Hono<{ Bindings: Bindings; Variables: Variables }>();
 
 // 睡眠ログのバリデーションスキーマ
 import { sleepLogSchema } from "../schemas";
+
+import { resolveViewUserId } from "./auth";
 
 // 睡眠データの保存 API
 app.post("/", zValidator("json", sleepLogSchema, (result, c) => {
@@ -85,24 +87,6 @@ app.post("/", zValidator("json", sleepLogSchema, (result, c) => {
     return c.json({ error: "Server Error" }, 500);
   }
 });
-// Helper to resolve user ID for viewing
-async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
-  const targetIdStr = c.req.query("targetUserId");
-  if (targetIdStr) {
-    const targetId = Number(targetIdStr);
-    // If viewing self, no extra check needed
-    if (targetId === requesterId) return requesterId;
-
-    // Check if target is public
-    const user: any = await c.env.DB.prepare("SELECT is_public FROM users WHERE id = ?").bind(targetId).first();
-    if (!user || user.is_public !== 1) {
-       throw new Error("Access denied: User data is not public");
-    }
-    return targetId;
-  }
-  return requesterId;
-}
-
 // 睡眠データの取得 (月単位 or ページネーション)
 app.get("/", async (c) => {
   try {

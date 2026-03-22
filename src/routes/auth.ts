@@ -104,4 +104,22 @@ app.post(
   }
 );
 
+// 当該ユーザーが公開設定をONにしているか確認するヘルパー関数。
+export async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
+  const targetIdStr = c.req.query("targetUserId");
+  if (targetIdStr) {
+    const targetId = Number(targetIdStr);
+    // 自分のデータを見ようとしている場合は、そのままユーザーIDを返す
+    if (targetId === requesterId) return requesterId;
+
+    // 公開設定をONにしているかのチェック
+    const user: any = await c.env.DB.prepare("SELECT is_public FROM users WHERE id = ?").bind(targetId).first();
+    if (!user || user.is_public !== 1) {
+       throw new Error("Access denied: User data is not public");
+    }
+    return targetId;
+  }
+  return requesterId;
+}
+
 export default app;
