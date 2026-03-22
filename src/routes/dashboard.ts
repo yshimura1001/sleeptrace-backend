@@ -6,7 +6,7 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Helper to resolve user ID for viewing
+// 当該ユーザーが公開設定をONにしているか確認するヘルパー関数。
 async function resolveViewUserId(c: any, requesterId: number): Promise<number> {
   const targetIdStr = c.req.query("targetUserId");
   if (targetIdStr) {
@@ -67,7 +67,7 @@ app.get("/statistics", async (c) => {
       return c.json({ data: null });
     }
 
-    // 時間のAVG計算（簡易）: 分換算して平均を取り、HH:MMに戻す
+    // 平均時間の算出(簡易的): 分換算して平均を算出し、HH:MM形式に戻す。
     const timeStats = await c.env.DB.prepare(
       `
       SELECT 
@@ -103,6 +103,7 @@ app.get("/statistics", async (c) => {
       light_sleep_percentage: number;
     }>();
 
+    // 最小二乗法(線形回帰)を用いて、データの傾き(Slope)を算出する関数。
     const calculateSlope = (data: number[]) => {
       const n = data.length;
       if (n < 2) return 0;
