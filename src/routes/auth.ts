@@ -9,11 +9,12 @@ const toHex = (buf: ArrayBuffer) =>
   Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
 
 export async function hashPassword(password: string): Promise<string> {
+  // ソルトを追加することで同じパスワードでも異なるハッシュを生成し、レインボーテーブル攻撃に対する耐性を向上。
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     new TextEncoder().encode(password),
-    "PBKDF2",
+    "PBKDF2", //計算コストを変動させることにより、ブルートフォース攻撃に対する耐性を向上。
     false,
     ["deriveBits"]
   );
