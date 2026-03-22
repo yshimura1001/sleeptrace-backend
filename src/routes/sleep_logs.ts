@@ -87,7 +87,7 @@ app.post("/", zValidator("json", sleepLogSchema, (result, c) => {
     return c.json({ error: "Server Error" }, 500);
   }
 });
-// 睡眠データの取得 (月単位 or ページネーション)
+// 睡眠データの取得 (月単位でページネーションする)
 app.get("/", async (c) => {
   try {
     const payload = c.get("jwtPayload");
