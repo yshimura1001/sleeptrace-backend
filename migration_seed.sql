@@ -28,12 +28,6 @@ CREATE TABLE IF NOT EXISTS sleep_logs (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- Seed Users
--- Password hash for "password" (SHA-256 of "password")
--- Note: In real app we should use salt + multiple rounds, but for simplicity here we use raw SHA-256 hex string or handled by backend logic.
--- Actually, the backend will verify using WebCrypto. Let's just put a placeholder here, assuming we can login via Signup first OR assume a known hash.
--- Let's rely on Signup for creating valid hashes, or create 'yasuaki' via backend logic later.
--- Ideally we insert them now. "5e884898da28047151d0e56f8dc6292773603d0d6aabbdd62a11ef721d1542d8" is SHA-256 for "password".
-
-INSERT INTO users (username, password_hash, is_public) VALUES ('yasuaki', '0f5a5eed0bc5c41cd6b434e7c01a350aabf81b85a2bbd5aa7673e697ce4b44f4', 1);
-INSERT INTO users (username, password_hash) VALUES ('guest', '4e44ddd556675917fdaf890126830760f42eb0c7baef4b02a0529a77c34724e8');
+-- Seed Users (PBKDF2: SHA-256, 100000 iterations, format: salt:hash)
+INSERT INTO users (username, password_hash, is_public) VALUES ('yasuaki', '38ab0e407ee0daaae729b00484175cd4:7acf0632f957182278266723de7c53e7025e45171d8607e2d7b2d33534d36309', 1);
+INSERT INTO users (username, password_hash) VALUES ('guest', '4b2b84ce6eaac2a104eb809197e231e0:c58fe856ca3a588e76c7373050ffe9393fa104e892cfc93bdf894276263ebd6f');

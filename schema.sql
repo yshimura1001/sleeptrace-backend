@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS sleep_logs (
   FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
--- Initial users
+-- Initial users (PBKDF2: SHA-256, 100000 iterations, salt:hash)
 INSERT INTO users (username, password_hash) VALUES
-  ('yasuaki', '0f5a5eed0bc5c41cd6b434e7c01a350aabf81b85a2bbd5aa7673e697ce4b44f4'),
-  ('guest', '4e44ddd556675917fdaf890126830760f42eb0c7baef4b02a0529a77c34724e8');
+  ('yasuaki', '38ab0e407ee0daaae729b00484175cd4:7acf0632f957182278266723de7c53e7025e45171d8607e2d7b2d33534d36309'),
+  ('guest', '4b2b84ce6eaac2a104eb809197e231e0:c58fe856ca3a588e76c7373050ffe9393fa104e892cfc93bdf894276263ebd6f');

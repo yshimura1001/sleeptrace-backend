@@ -5,12 +5,42 @@ import { zValidator } from "@hono/zod-validator";
 
 const app = new Hono<{ Bindings: { DB: D1Database; JWT_SECRET: string } }>();
 
-// Simple SHA-256 hash function (In production, use salt + PBKDF2 or similar)
+const toHex = (buf: ArrayBuffer) =>
+  Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
+
 export async function hashPassword(password: string): Promise<string> {
-  const msgBuffer = new TextEncoder().encode(password);
-  const hashBuffer = await crypto.subtle.digest("SHA-256", msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, hash: "SHA-256", iterations: 100_000 },
+    keyMaterial,
+    256
+  );
+  return `${toHex(salt.buffer as ArrayBuffer)}:${toHex(hashBuffer)}`;
+}
+
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
+  const [saltHex, hashHex] = stored.split(":");
+  const salt = new Uint8Array(saltHex.match(/.{2}/g)!.map((b) => parseInt(b, 16)));
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const hashBuffer = await crypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, hash: "SHA-256", iterations: 100_000 },
+    keyMaterial,
+    256
+  );
+  return toHex(hashBuffer) === hashHex;
 }
 
 const authSchema = z.object({
@@ -55,8 +85,8 @@ app.post(
       return c.json({ error: "ユーザー名またはパスワードが間違っています。" }, 401);
     }
 
-    const inputHash = await hashPassword(password);
-    if (inputHash !== user.password_hash) {
+    const isValid = await verifyPassword(password, user.password_hash);
+    if (!isValid) {
       return c.json({ error: "ユーザー名またはパスワードが間違っています。" }, 401);
     }
 

@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { zValidator } from "@hono/zod-validator";
 import { userUpdateSchema } from "../schemas";
-import { hashPassword } from "./auth";
+import { hashPassword, verifyPassword } from "./auth";
 
 type Bindings = {
   DB: D1Database;
@@ -94,8 +94,8 @@ app.put("/:id", zValidator("json", userUpdateSchema, (result, c) => {
 
     // パスワード変更
     if (body.new_password) {
-      const currentHash = await hashPassword(body.current_password!);
-      if (currentHash !== currentUser.password_hash) {
+      const isValid = await verifyPassword(body.current_password!, currentUser.password_hash);
+      if (!isValid) {
         return c.json({ error: "現在のパスワードが間違っています。" }, 401);
       }
       const newHash = await hashPassword(body.new_password);
