@@ -93,7 +93,7 @@ app.get("/statistics", async (c) => {
     const calculateSlope = (data: number[]) => {
       const n = data.length;
       if (n < 2) return 0;
-      const x = Array.from({ length: n }, (_, i) => i);
+      const x = [...Array(n).keys()];
       const y = data;
       const sumX = x.reduce((a, b) => a + b, 0);
       const sumY = y.reduce((a, b) => a + b, 0);
