@@ -18,39 +18,39 @@ const app = new Hono<{ Bindings: Bindings }>();
 // CORSを許可する
 app.use("/api/*", cors());
 
-// Authentication Routes (Public)
+// 認証ルート(公開)
 app.route("/api/auth", authRouter);
 
-// JWT Middleware for protected routes
+// JWTミドルウェアで保護されてルートを定義
 app.use("/api/sleep_logs/*", (c, next) => {
-    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const secret = c.env.JWT_SECRET;
     const jwtMiddleware = jwt({ secret });
     return jwtMiddleware(c, next);
 });
 app.use("/api/dashboard/*", (c, next) => {
-    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const secret = c.env.JWT_SECRET;
     const jwtMiddleware = jwt({ secret });
     return jwtMiddleware(c, next);
 });
 app.use("/api/csv/*", (c, next) => {
-    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const secret = c.env.JWT_SECRET;
     const jwtMiddleware = jwt({ secret });
     return jwtMiddleware(c, next);
 });
 app.use("/api/users/*", (c, next) => {
-    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev";
+    const secret = c.env.JWT_SECRET;
     const jwtMiddleware = jwt({ secret });
     return jwtMiddleware(c, next);
 });
 
 
-// Protected Routes
+// 保護されたルートを定義
 app.route("/api/dashboard", dashboardRouter);
 app.route("/api/sleep_logs", sleepLogsRouter);
 app.route("/api/csv", csvRouter);
 app.route("/api/users", usersRouter);
 
-// 疎通確認用エンドポイント (Public)
+// 疎通確認用エンドポイント (公開)
 app.get("api/check", async (c) => {
   try {
     const db = c.env.DB;
