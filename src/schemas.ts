@@ -56,13 +56,8 @@ export const sleepLogSchema = z
       .max(100, "レム睡眠の割合は 0 から 100 の間で入力してください。"),
   })
   .refine(
-    (data) => {
-      const sum =
-        data.deep_sleep_percentage +
-        data.light_sleep_percentage +
-        data.rem_sleep_percentage;
-      return sum === 100;
-    },
+    (data) => 
+      data.deep_sleep_percentage + data.light_sleep_percentage + data.rem_sleep_percentage === 100,
     {
       message:
         "深い睡眠割合、浅い睡眠割合、レム睡眠割合の合計は100%である必要があります。",
