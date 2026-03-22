@@ -56,7 +56,7 @@ app.post(
     const { username, password } = c.req.valid("json");
     const db = c.env.DB;
 
-    // Check existing
+    // ユーザーが既に登録されていないか確認。
     const existing = await db.prepare("SELECT 1 FROM users WHERE username = ?").bind(username).first();
     if (existing) {
       return c.json({ error: "ユーザー名は既に使用されています。" }, 409);
@@ -94,10 +94,10 @@ app.post(
     const payload = {
       sub: user.id,
       username: user.username,
-      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
+      exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7日間。
     };
 
-    const secret = c.env.JWT_SECRET || "fallback_secret_for_dev"; // Should be env var
+    const secret = c.env.JWT_SECRET;
     const token = await sign(payload, secret);
 
     return c.json({ token, user: { id: user.id, username: user.username } });
