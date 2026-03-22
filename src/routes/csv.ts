@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { z } from "zod";
 import { sleepLogSchema } from "../schemas";
 
 type Bindings = {
@@ -8,7 +7,7 @@ type Bindings = {
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-// Helper to calculate duration in minutes given "HH:MM" strings
+// "HH:MM"を変換して、睡眠時間を算出するヘルパー関数。
 function calculateDuration(bedTime: string, wakeupTime: string): number {
   const [bH, bM] = bedTime.split(":").map(Number);
   const [wH, wM] = wakeupTime.split(":").map(Number);
@@ -16,26 +15,25 @@ function calculateDuration(bedTime: string, wakeupTime: string): number {
   let bMinutes = bH * 60 + bM;
   let wMinutes = wH * 60 + wM;
 
+  // 起床時間が就寝時間より前の場合
   if (wMinutes < bMinutes) {
-    // Crossed midnight
-    wMinutes += 24 * 60;
+    wMinutes += 24 * 60; // 24時間を追加して翌日扱いにする。
   }
-  
   return wMinutes - bMinutes;
 }
 
-// Helper to strip quotes and trim
+// 引用符の除去とトリムを行うヘルパー関数。CSV用。
 function cleanVal(val: string): string {
-    return val ? val.replace(/^"|"$/g, '').trim() : "";
+    return val.replace(/^"|"$/g, '').trim();
 }
 
-// Helper to parse percentages that might have % sign
+// %を除去するヘルパー関数。
 function parsePercentage(val: string): number {
     const cleaned = cleanVal(val).replace('%', '');
     return Number(cleaned);
 }
 
-// CSV Export
+// CSVエクスポート
 app.get("/export", async (c) => {
   try {
     const { results } = await c.env.DB.prepare(
@@ -46,7 +44,7 @@ app.get("/export", async (c) => {
        return c.text("日付,睡眠スコア,就寝時間,起床時間,中途覚醒回数,深い睡眠の持続性,睡眠時間,深い睡眠割合,浅い睡眠割合,レム睡眠割合\n");
     }
 
-    // Japanese headers, matching data.csv structure
+    // ヘッダー
     const header = [
       "日付",
       "睡眠スコア",
@@ -86,7 +84,7 @@ app.get("/export", async (c) => {
   }
 });
 
-// CSV Import
+// CSVインポート
 app.post("/import", async (c) => {
   try {
     const contentType = c.req.header("Content-Type") || "";
@@ -108,9 +106,10 @@ app.post("/import", async (c) => {
       return c.json({ error: "CSVの内容が空です。" }, 400);
     }
 
+    // 行ごとに分割し、空行を除去。
     const lines = csvText.split(/\r?\n/).filter(line => line.trim() !== "");
     
-    // Skip header line logic: Just assume first line is header and skip it
+    // ヘッダーをスキップする
     const dataLines = lines.slice(1);
 
     let successCount = 0;
@@ -120,7 +119,7 @@ app.post("/import", async (c) => {
 
     const db = c.env.DB;
 
-    // Fixed Index Mapping
+    // インデックスのマッピング。
     // 0: sleep_date
     // 1: sleep_score
     // 2: bed_time
@@ -138,7 +137,7 @@ app.post("/import", async (c) => {
       const getCol = (idx: number) => (cols.length > idx) ? cols[idx] : "";
 
       let sleepDate = getCol(0);
-      if (!sleepDate) continue; // skip empty
+      if (!sleepDate) continue; // 睡眠日が空の場合はスキップ。
 
       sleepDate = sleepDate.replace(/\//g, "-");
 
@@ -148,24 +147,23 @@ app.post("/import", async (c) => {
       const wakeupCount = Number(getCol(4));
       const deepSleepCont = Number(getCol(5));
       
-      // Parse Duration (Index 6)
       let duration = 0;
       const durationStr = getCol(6);
       
       if (durationStr) {
           if (!isNaN(Number(durationStr))) {
-               // It's a number (minutes)
+               // Number型の場合
                duration = Number(durationStr);
           } else if (durationStr.includes(":")) {
-               // It's a time string (HH:MM or H:MM) - convert to minutes
+               // 文字列型の場合(HH:MM or H:MM)
                const [h, m] = durationStr.split(":").map(Number);
                if (!isNaN(h) && !isNaN(m)) {
-                   duration = h * 60 + m;
+                   duration = h * 60 + m; // 数値に変換する
                }
           }
       }
 
-      // Fallback calculation if duration is still 0 (and we have times)
+      // 睡眠時間が0かつ、就寝時間と起床時間がある場合は、就寝時間と起床時間から睡眠時間を計算。
       if (duration === 0 && bedTime && wakeupTime) {
           const normBed = bedTime.indexOf(':') === 1 ? '0' + bedTime : bedTime;
           const normWake = wakeupTime.indexOf(':') === 1 ? '0' + wakeupTime : wakeupTime;
@@ -191,7 +189,7 @@ app.post("/import", async (c) => {
         rem_sleep_percentage: remSleepPct,
       };
 
-      // Validate
+      // バリデーション
       const parsed = sleepLogSchema.safeParse(rawData);
       if (!parsed.success) {
         errorCount++;
@@ -210,7 +208,6 @@ app.post("/import", async (c) => {
         continue;
       }
 
-      // Insert
       const res = await db.prepare(`
         INSERT INTO sleep_logs (
           sleep_date, sleep_score, bed_time, wakeup_time, sleep_duration,
